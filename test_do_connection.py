@@ -1,5 +1,5 @@
 # filepath: test_do_connection.py
-from src.xml_to_sql import test_spaces_connection
+from src.xml_to_sql import run_connectivity_checks # Nombre de función actualizado
 
 if __name__ == "__main__":
-    test_spaces_connection()
+    run_connectivity_checks() # Nombre de función actualizado

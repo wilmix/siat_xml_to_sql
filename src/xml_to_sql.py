@@ -42,6 +42,115 @@ def execute_sql(cnx, sql_query):
         if cursor:
             cursor.close()
 
+def run_connectivity_checks(config_file_path="db_config.ini"):
+    """
+    Prueba la conexión a la base de datos y a DigitalOcean Spaces.
+    """
+    print("--- Iniciando Pruebas de Conectividad ---")
+    db_connection_ok = False
+    spaces_connection_ok = False
+
+    # --- Prueba de Conexión a la Base de Datos ---
+    print("\\n--- Prueba de Conexión a la Base de Datos ---")
+    try:
+        db_config = get_db_config(config_file_path)
+        print(f"Configuración de Base de Datos cargada desde '{config_file_path}':")
+        print(f"  Host: {db_config.get('host')}")
+        print(f"  User: {db_config.get('user')}")
+        print(f"  Database: {db_config.get('database')}")
+        # No mostrar la contraseña
+
+        print(f"Intentando conectar a la base de datos '{db_config.get('database')}' en '{db_config.get('host')}'...")
+        cnx = connect_to_db(db_config) # This function already tries to connect to the specific DB
+        
+        if cnx and cnx.is_connected():
+            print(f"¡Conexión exitosa a la base de datos '{db_config.get('database')}'!")
+            # Adicionalmente, podríamos verificar si la base de datos realmente existe
+            # consultando el catálogo, pero connect_to_db ya falla si la DB no existe.
+            # cursor = cnx.cursor()
+            # cursor.execute(f"SHOW DATABASES LIKE '{db_config.get('database')}';")
+            # result = cursor.fetchone()
+            # if result:
+            #     print(f"La base de datos '{db_config.get('database')}' existe en el servidor.")
+            # else:
+            #     print(f"ADVERTENCIA: La conexión al servidor fue exitosa, pero la base de datos '{db_config.get('database')}' no parece existir.")
+            # cursor.close()
+            cnx.close()
+            db_connection_ok = True
+        else:
+            # connect_to_db ya imprime un error si falla
+            print("Fallo al conectar con la base de datos (ver mensaje anterior si existe).")
+            
+    except FileNotFoundError:
+        print(f"Error: Archivo de configuración '{config_file_path}' no encontrado para la sección [DATABASE].")
+    except ValueError as e: 
+        print(f"Error en la sección [DATABASE] del archivo de configuración: {e}")
+    except mysql.connector.Error as err:
+        print(f"Error de MySQL al conectar/verificar la base de datos: {err}")
+        if err.errno == 1049: # Error code for "Unknown database"
+             print(f"  Detalle: La base de datos '{db_config.get('database', 'N/A')}' no existe en el servidor '{db_config.get('host', 'N/A')}'.")
+        elif err.errno == 1045: # Error code for "Access denied"
+            print(f"  Detalle: Acceso denegado para el usuario '{db_config.get('user', 'N/A')}' en '{db_config.get('host', 'N/A')}'. Verifica usuario y contraseña.")
+    except Exception as e:
+        print(f"Un error inesperado ocurrió durante la prueba de conexión a la BD: {e}")
+    print("--- Prueba de Base de Datos Finalizada ---")
+
+    # --- Prueba de Conexión a DigitalOcean Spaces --- (Código existente de test_spaces_connection)
+    print("\\n--- Prueba de Conexión a DigitalOcean Spaces ---")
+    try:
+        spaces_config = get_spaces_config(config_file_path)
+        print(f"Configuración de Spaces cargada desde '{config_file_path}':")
+        print(f"  Endpoint URL: {spaces_config.get('endpoint_url')}")
+        print(f"  Region Name: {spaces_config.get('region_name')}")
+        print(f"  Access Key ID: {spaces_config.get('aws_access_key_id')[:5]}... (oculto)")
+
+        session = boto3.session.Session()
+        client = session.client('s3',
+                                region_name=spaces_config['region_name'],
+                                endpoint_url=spaces_config['endpoint_url'],
+                                aws_access_key_id=spaces_config['aws_access_key_id'],
+                                aws_secret_access_key=spaces_config['aws_secret_access_key'])
+
+        print("Intentando listar buckets...")
+        response = client.list_buckets()
+        
+        print("¡Conexión exitosa a DigitalOcean Spaces!")
+        buckets = [bucket['Name'] for bucket in response.get('Buckets', [])]
+        if buckets:
+            print("Buckets encontrados:")
+            for bucket_name in buckets:
+                print(f"  - {bucket_name}")
+        else:
+            print("No se encontraron buckets (o no tienes permiso para listarlos).")
+        spaces_connection_ok = True
+
+    except FileNotFoundError:
+        print(f"Error: Archivo de configuración '{config_file_path}' no encontrado para la sección [SPACES].")
+    except ValueError as e: 
+        print(f"Error en la configuración de Spaces: {e}")
+    except (NoCredentialsError, PartialCredentialsError):
+        print("Error: Credenciales de AWS/Spaces no encontradas o incompletas.")
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code")
+        print(f"Error de Cliente al conectar con Spaces: {e} (Código: {error_code})")
+        if error_code == "InvalidAccessKeyId":
+            print("  Sugerencia: Verifica tu 'aws_access_key_id'.")
+        elif error_code == "SignatureDoesNotMatch":
+            print("  Sugerencia: Verifica tu 'aws_secret_access_key' y asegúrate de que el 'endpoint_url' y 'region_name' sean correctos y coincidan.")
+            print("              Asegúrate también de que la hora de tu sistema esté sincronizada.")
+        elif error_code == "InvalidRequest" and "The authorization mechanism you have provided is not supported. Please use AWS4-HMAC-SHA256" in str(e):
+             print("  Sugerencia: El endpoint o la región podrían no estar configurados para usar la firma v4. Revisa la configuración de tu cliente S3 o el endpoint.")
+    except Exception as e:
+        print(f"Un error inesperado ocurrió durante la prueba de conexión a Spaces: {e}")
+    
+    print("--- Prueba de Spaces Finalizada ---")
+    print("\\n--- Resumen de Pruebas de Conectividad ---")
+    print(f"Conexión a Base de Datos: {'ÉXITO' if db_connection_ok else 'FALLO'}")
+    print(f"Conexión a DigitalOcean Spaces: {'ÉXITO' if spaces_connection_ok else 'FALLO'}")
+    print("-----------------------------------------")
+    return db_connection_ok and spaces_connection_ok
+
+
 def parse_xml_and_generate_insert(xml_string, factura_id, pedido=None):
     """
     Parse XML content and generate SQL INSERT statement
