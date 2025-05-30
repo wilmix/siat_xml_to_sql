@@ -1,0 +1,15 @@
+[DATABASE]
+host = YOUR_DATABASE_HOST
+user = YOUR_DATABASE_USER
+password = YOUR_DATABASE_PASSWORD
+database = YOUR_DATABASE_NAME
+port = YOUR_DATABASE_PORT
+charset = utf8mb4
+
+[SPACES]
+region_name = YOUR_SPACES_REGION
+endpoint_url = YOUR_SPACES_ENDPOINT_URL
+aws_access_key_id = YOUR_SPACES_ACCESS_KEY_ID
+aws_secret_access_key = YOUR_SPACES_SECRET_ACCESS_KEY
+bucket_name = YOUR_SPACES_BUCKET_NAME
+upload_folder = YOUR_SPACES_UPLOAD_FOLDER
