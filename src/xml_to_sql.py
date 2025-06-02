@@ -279,9 +279,10 @@ def upload_to_spaces(spaces_config, local_file_path, spaces_file_key):
         print(f"Un error inesperado ocurrió al subir a Spaces: {e}")
         return False, None
 
-def process_factura_by_cuf(cuf, factura_id, base_path=".", pedido=None):
+def process_factura_by_cuf(cuf, factura_id, base_path=".", pedido=None, numero_factura=None, total_factura=None):
     """
     Process invoice by CUF, finding the XML file and generating the SQL insert.
+    Validates invoice number and total amount if provided.
     Returns a tuple (sql_query, xml_file_path) if successful, (None, None) otherwise.
     """
     xml_path = find_xml_by_cuf(cuf, base_path)
@@ -292,18 +293,35 @@ def process_factura_by_cuf(cuf, factura_id, base_path=".", pedido=None):
     try:
         with open(xml_path, 'r', encoding='utf-8') as file:
             xml_string = file.read()
+        
+        # Validate invoice number and total amount if provided
+        root = ET.fromstring(xml_string)
+        cabecera = root.find(".//cabecera")
+        
+        if numero_factura is not None:
+            xml_numero = cabecera.find("numeroFactura").text
+            if xml_numero != numero_factura:
+                print(f"Error de validación: El número de factura proporcionado ({numero_factura}) no coincide con el XML ({xml_numero})")
+                return None, None
+        
+        if total_factura is not None:
+            xml_total = float(cabecera.find("montoTotal").text)
+            if abs(xml_total - total_factura) > 0.01:  # Using small epsilon for float comparison
+                print(f"Error de validación: El monto total proporcionado ({total_factura}) no coincide con el XML ({xml_total})")
+                return None, None
+            
         sql_query = parse_xml_and_generate_insert(xml_string, factura_id, pedido)
-        return sql_query, xml_path  # Return both SQL query and XML path
+        return sql_query, xml_path
     except Exception as e:
         print(f"Error procesando el archivo XML: {e}")
         return None, None
 
-def procesar_e_insertar_factura(cuf, factura_id, base_path, config_file, pedido=None):
+def procesar_e_insertar_factura(cuf, factura_id, base_path, config_file, pedido=None, numero_factura=None, total_factura=None):
     """
-    Procesa una factura por su CUF, genera el SQL, opcionalmente la inserta en la BD
-    y opcionalmente sube el XML a DigitalOcean Spaces.
+    Procesa una factura por su CUF, valida los datos si se proporcionan, genera el SQL, 
+    opcionalmente la inserta en la BD y opcionalmente sube el XML a DigitalOcean Spaces.
     """
-    sql_query, xml_file_path = process_factura_by_cuf(cuf, factura_id, base_path, pedido) # Capture xml_file_path
+    sql_query, xml_file_path = process_factura_by_cuf(cuf, factura_id, base_path, pedido, numero_factura, total_factura)
     if not sql_query:
         # Error message already printed by process_factura_by_cuf
         return
