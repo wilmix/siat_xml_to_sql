@@ -2,19 +2,17 @@ from src.xml_to_sql import procesar_e_insertar_factura
 
 if __name__ == "__main__":
     # --- Configuración de la Factura a Procesar ---
-    cuf_factura = "447D9700433669B03A2DC5F9994170361F763B86E54B38CDC8B0D1F74"
-    id_factura_db = 108657
-    pedido_opcional = "OL 24003889"
-    numero_factura = "59"
-    total_factura = 88670.40
+    cuf_factura = "447D970043366B0939995E2E850A1F29B11E401AC462ED618D52D1F74"
+    id_factura_db = 108799
+    pedido_opcional = ""
+    numero_factura = "62"
+    total_factura = 117.97
 
-    #id_factura_db = 108658
-    #pedido_opcional = "OL 24003889"
-    #numero_factura = "59"
-    #total_factura = 31111.2 
+
     
     # --- Configuración de Rutas ---
-    ruta_base_xml = "./data"  # Ajusta esta ruta según tu estructura de carpetas XML
+    # Ajusta las rutas según tu estructura de carpetas C:/Users/willy/OneDrive/Desktop/obsFacturas/siat_xml_to_sql/data
+    ruta_base_xml = "C:/Users/willy/OneDrive/Desktop/obsFacturas/siat_xml_to_sql/data"  # Ajusta esta ruta según tu estructura de carpetas XML
     archivo_config_db = "db_config.ini" # Ruta al archivo de configuración de la BD
 
     # --- Procesar e Intentar Insertar Factura ---
