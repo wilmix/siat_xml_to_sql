@@ -1,0 +1,9 @@
+[project]
+name = "siat-xml-to-sql"
+version = "0.1.0"
+description = "SIAT XML invoice processor for MySQL and DigitalOcean Spaces"
+requires-python = ">=3.11"
+dependencies = [
+    "mysql-connector-python",
+    "boto3",
+]

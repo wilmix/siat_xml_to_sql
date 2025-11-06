@@ -2,11 +2,12 @@ from src.xml_to_sql import procesar_e_insertar_factura
 
 if __name__ == "__main__":
     # --- Configuración de la Factura a Procesar ---
-    cuf_factura = "447D97004336937AFD837DCA282A6E49EC3E55778163225E024302F74"
-    id_factura_db = 110086
+    cuf_factura = "447D97004336CA901C7AFAE366C66201411A70EEC1437D0299D542F74"
+    id_factura_db = 111730
     pedido_opcional = "PO 125806"
-    numero_factura = "76"
-    total_factura =  2910.67
+    numero_factura = "94"
+    total_factura =  27845.99
+
 
    
     # --- Configuración de Rutas ---
