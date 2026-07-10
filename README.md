@@ -60,7 +60,39 @@ upload_folder = obs/xmls/
 
 ## Uso
 
-### Procesar una factura
+### Procesar una factura (recomendado: por idFactura)
+
+`cargar.py` es el flujo optimizado: le pasas solo el `idFactura` de la tabla
+`factura` en la base de datos y encuentra automáticamente el XML SIAT
+correspondiente, cruzando por monto total + NIT + fecha de emisión. El
+número de pedido/PO se obtiene automáticamente del egreso de inventario
+enlazado (`factura_egresos` → `egresos.clientePedido`).
+
+```bash
+uv run cargar.py 116780
+```
+
+Opciones:
+```bash
+uv run cargar.py 116780 --pedido "PO 128365"   # forzar el pedido en vez de leerlo del egreso
+uv run cargar.py 116780 --cuf 447D97...        # forzar el CUF exacto (si hay >1 factura
+                                                # idéntica del mismo cliente el mismo día)
+uv run cargar.py 116780 --base "C:\ruta\xml"   # otra carpeta base de búsqueda
+```
+
+El script:
+1. Lee la factura por `idFactura` (solo lectura).
+2. Busca el XML cuya cabecera calce por monto + NIT + fecha. Si hay 0 o
+   varias coincidencias, avisa y no continúa (usa `--cuf` para forzar).
+3. Verifica que el CUF no esté ya cargado en `factura_siat` (evita duplicados).
+4. Muestra un resumen y pide confirmación (`s/n`) antes de insertar.
+5. Inserta con una consulta parametrizada (sin riesgo de inyección SQL).
+6. Pregunta si subir el XML a DigitalOcean Spaces.
+
+Solo ejecuta `SELECT` y, tras tu confirmación explícita, un `INSERT`. Nunca
+modifica ni elimina facturas existentes.
+
+### Procesar una factura (flujo original, por CUF)
 
 Edita `example.py` con los datos de la factura:
 
@@ -109,7 +141,8 @@ siat_xml_to_sql/
 │   └── xml_to_sql.py          # Lógica principal de procesamiento
 ├── tests/
 ├── data/                      # Directorio para archivos XML
-├── example.py                 # Ejemplo de uso
+├── cargar.py                  # Flujo recomendado: cargar por idFactura
+├── example.py                 # Flujo original: cargar por CUF
 ├── test_do_connection.py      # Pruebas de conectividad
 ├── db_config.ini.example      # Plantilla de configuración
 ├── pyproject.toml             # Configuración del proyecto

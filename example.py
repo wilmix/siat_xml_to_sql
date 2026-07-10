@@ -12,7 +12,7 @@ if __name__ == "__main__":
    
     # --- Configuración de Rutas ---
     # Ajusta las rutas según tu estructura de carpetas C:/Users/willy/OneDrive/Desktop/obsFacturas/siat_xml_to_sql/data
-    ruta_base_xml = r"C:\Users\willy\OneDrive\Documentos\xml\2025"  # Ajusta esta ruta según tu estructura de carpetas XML
+    ruta_base_xml = r"C:\Users\willy\OneDrive\Documentos\xml"  # Búsqueda recursiva: encuentra el XML en cualquier año/mes/día
     archivo_config_db = "db_config.ini" # Ruta al archivo de configuración de la BD
 
     # --- Procesar e Intentar Insertar Factura ---

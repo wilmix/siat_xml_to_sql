@@ -21,12 +21,31 @@ The application follows this workflow:
 
 ### Key Functions
 
+**Original flow (by CUF, `example.py`):**
 - `procesar_e_insertar_factura()`: Main entry point for processing invoices (lines 319-386)
 - `process_factura_by_cuf()`: Finds XML by CUF and validates/generates SQL (lines 282-317)
-- `parse_xml_and_generate_insert()`: Parses XML and builds SQL INSERT query (lines 154-207)
-- `find_xml_by_cuf()`: Recursively searches for XML files (lines 209-221)
-- `upload_to_spaces()`: Uploads XML to DigitalOcean Spaces with explicit ContentType (lines 233-280)
-- `run_connectivity_checks()`: Tests both database and Spaces connectivity (lines 45-151)
+- `parse_xml_and_generate_insert()`: Parses XML and builds SQL INSERT query (f-string based, legacy)
+- `find_xml_by_cuf()`: Recursively searches for XML files by exact CUF filename
+- `upload_to_spaces()`: Uploads XML to DigitalOcean Spaces with explicit ContentType
+- `run_connectivity_checks()`: Tests both database and Spaces connectivity
+
+**Optimized flow (by idFactura, `cargar.py` — recommended):**
+- `cargar_factura_siat()`: Orchestrates the full by-idFactura flow (read `factura`, auto-match XML,
+  dedupe check, confirm, parameterized insert, optional Spaces upload). Read-only except for the
+  final INSERT, which always requires explicit user confirmation. Never issues DELETE/UPDATE.
+- `get_factura_by_id()`: Reads a row from `factura` (SELECT only) for the matching fields.
+- `find_xml_for_factura()`: Searches XML files matching montoTotal + numeroDocumento + fecha,
+  deduplicating by CUF (a factura can have more than one physical XML copy on disk with the
+  same CUF but different filenames — only the canonical `{CUF}.xml` is kept).
+- `get_pedido_from_egresos()`: Auto-fills the `pedido` field by reading
+  `factura_egresos -> egresos.clientePedido` (validated 100% consistent against historical
+  `factura_siat.pedido` values, so `--pedido` is now optional).
+- `cuf_existe_en_db()`: Pre-checks for a duplicate CUF before attempting the insert.
+- `build_insert_factura_siat()` / `execute_sql_params()`: Parameterized INSERT (no f-string SQL,
+  avoids injection/quoting issues) that replicates the exact field pattern observed in 100+
+  historical manual (`codigoRecepcion='siatDesktop'`) rows.
+- `fix_mojibake()`: Repairs UTF-8-double-encoded text in `leyenda`/`nombreRazonSocial` (the raw
+  XML files contain mojibake like `NÂ°`/`Ã³`; the DB stores the clean version).
 
 ## Configuration
 
@@ -103,6 +122,34 @@ The INSERT query targets a table named `factura_siat` with these key fields:
 - `leyenda`, `cafc`: Optional fields
 - `codigoRecepcion`: Fixed value "siatDesktop"
 - `created_at`: Timestamp from XML fechaEmision
+
+## Production Database Schema Note
+
+The DigitalOcean MySQL server hosts many schemas on the same instance (yearly backups like
+`hergo2023`..`hergo2025`, `hg2025`, `hg2025fix`, `hergo_obs`, etc.). **The live production schema
+is `hergo`** — `db_config.ini`'s `database` value must be `hergo`, not `defaultdb` (which has no
+facturación tables) and not one of the year-suffixed backup schemas.
+
+### Linking a SIAT XML to a `factura` row
+
+There is no `cuf` column on `factura`. XML ↔ `factura` matching is done by:
+`numeroDocumento` (XML) = `ClienteNit`, `montoTotal` (XML) = `total`, and
+`fechaEmision` date (XML) = `fechaFac`. Validated against ~3800 real 2026 invoices: NIT and date
+match 100%, amount matches 99.97%. About 2.4% of cases are ambiguous (same client/date/amount
+twice) — resolve with `--cuf`. Note `numeroFactura` in the XML is the SIAT dosificación number,
+**not** the same as `factura.nFactura` (internal correlative) — don't try to match on it.
+
+### Known root-cause bug (fixed in the `hergo` PHP app, not this project)
+
+`Facturas::storeFactura` (in the separate `hergo` repo, `EmitirFactura` screen used for these
+manual/dollar invoices) used to trust the `total` posted by the browser instead of recalculating
+it server-side. If the invoice date was changed after the browser-side exchange rate variable was
+computed, the header `total` could be saved using a different day's tipo de cambio than the detail
+lines, producing a `factura.total` that doesn't match its own `facturadetalle` sum or the XML.
+Fixed by recalculating `total` server-side from `Σ(cantidad × punitario)` of the posted detail.
+If you find a `factura`/`facturadetalle` total mismatch for an invoice created before this fix,
+it likely needs a manual correction (see git history / conversation for the surgical UPDATE
+pattern used, always backup + transaction + verify exactly 1 row affected).
 
 ## XML File Organization
 
