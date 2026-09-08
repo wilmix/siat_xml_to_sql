@@ -68,7 +68,21 @@ This will create a `.venv` virtual environment and install all dependencies from
 - `mysql-connector-python`: MySQL database connector
 - `boto3`: AWS SDK for DigitalOcean Spaces
 
-### Run Invoice Processing
+### Run Invoice Processing (Recommended: by idFactura)
+```bash
+uv run cargar.py <idFactura>
+```
+Example:
+```bash
+uv run cargar.py 118308
+# With optional manual flags:
+uv run cargar.py 118308 --pedido "PO 128365"
+uv run cargar.py 118308 --cuf <CUF_HASH>
+uv run cargar.py 118308 --base "C:\Users\willy\OneDrive\Documentos\xml"
+```
+Automatically finds XML by matching amount, NIT, and date, fetches `pedido` from `egresos`, validates against duplicates in `factura_siat`, and asks for confirmation (`s/n`) before INSERT.
+
+### Run Invoice Processing (Legacy: by CUF via example.py)
 ```bash
 uv run example.py
 ```

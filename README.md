@@ -58,19 +58,37 @@ bucket_name = tu_bucket
 upload_folder = obs/xmls/
 ```
 
-## Uso
+## ⚡ Guía Rápida: Cargar Factura por ID
 
-### Procesar una factura (recomendado: por idFactura)
-
-`cargar.py` es el flujo optimizado: le pasas solo el `idFactura` de la tabla
-`factura` en la base de datos y encuentra automáticamente el XML SIAT
-correspondiente, cruzando por monto total + NIT + fecha de emisión. El
-número de pedido/PO se obtiene automáticamente del egreso de inventario
-enlazado (`factura_egresos` → `egresos.clientePedido`).
+Para procesar e insertar una factura directamente por su `idFactura` de la base de datos:
 
 ```bash
-uv run cargar.py 116780
+uv run cargar.py <idFactura>
 ```
+
+**Ejemplo:**
+```bash
+uv run cargar.py 118308
+```
+
+El sistema automáticamente:
+1. Lee los datos de la factura en MySQL (`factura`).
+2. Obtiene el pedido (`clientePedido`) desde el egreso vinculado (`factura_egresos`).
+3. Busca el XML en OneDrive (`Documentos\xml\...`) cruzando monto, NIT y fecha.
+4. Verifica que el CUF no esté duplicado en `factura_siat`.
+5. Pide confirmación interactiva (`s/n`) para insertar en la BD y para subir a Spaces.
+
+---
+
+## Uso
+
+### Procesar una factura (por idFactura — Recomendado)
+
+`cargar.py` es el flujo optimizado estándar. Opciones disponibles:
+
+```bash
+# Ejecución estándar:
+uv run cargar.py 118308
 
 Opciones:
 ```bash
@@ -180,6 +198,6 @@ siat_xml_to_sql/
 - Mensajes de error descriptivos en español
 
 ## Licencia
+ 
+Ver archivo LICENSE para detalles.
 
-Ver archivo LICENSE para detalles.</content>
-<parameter name="filePath">c:\Users\willy\dev\projects\siat_xml_to_sql\README.md
