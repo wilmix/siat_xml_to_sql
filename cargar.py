@@ -14,6 +14,7 @@ Uso:
   uv run cargar.py 116634 --pedido "PO 125806"
   uv run cargar.py 116634 --cuf 447D97...      (override si hay 2 facturas idénticas el mismo día)
   uv run cargar.py 116634 --base "C:\\Users\\willy\\OneDrive\\Documentos\\xml"
+  uv run cargar.py 116634 --solo-spaces         (no inserta en BD, solo sube el XML a Spaces)
 """
 import argparse
 
@@ -45,6 +46,11 @@ def main():
         default=ARCHIVO_CONFIG,
         help="Ruta al archivo de configuración de la BD/Spaces.",
     )
+    parser.add_argument(
+        "--solo-spaces",
+        action="store_true",
+        help="No inserta en factura_siat: solo localiza el XML y lo sube a Spaces.",
+    )
     args = parser.parse_args()
 
     cargar_factura_siat(
@@ -53,6 +59,7 @@ def main():
         config_file=args.config,
         pedido=args.pedido,
         cuf_override=args.cuf,
+        solo_spaces=args.solo_spaces,
     )
 
 

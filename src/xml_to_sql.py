@@ -520,11 +520,42 @@ def upload_to_spaces(spaces_config, local_file_path, spaces_file_key):
         print(f"Un error inesperado ocurrió al subir a Spaces: {e}")
         return False, None
 
-def cargar_factura_siat(id_factura, base_path, config_file, pedido=None, cuf_override=None):
+def subir_xml_a_spaces(config_file, xml_path):
+    """
+    Sube un XML a DigitalOcean Spaces usando la carpeta configurada en [SPACES].
+
+    La clave se arma con upload_folder + nombre del archivo, por lo que re-subir el
+    mismo XML sobrescribe el objeto existente (no lo duplica).
+    Devuelve True si la subida fue exitosa, False en caso contrario.
+    """
+    try:
+        spaces_config = get_spaces_config(config_file)
+    except FileNotFoundError:
+        print(f"Error: Archivo de configuración '{config_file}' no encontrado para la sección [SPACES].")
+        return False
+    except ValueError as e:
+        print(f"Error en la sección [SPACES] del archivo de configuración: {e}")
+        return False
+
+    upload_folder = spaces_config.get("upload_folder", "obs/xmls/")
+    if upload_folder and not upload_folder.endswith("/"):
+        upload_folder += "/"
+    spaces_key = f"{upload_folder}{os.path.basename(xml_path)}"
+
+    print(f"Intentando subir '{os.path.basename(xml_path)}' a Spaces en la ruta: '{spaces_config['bucket_name']}/{spaces_key}'...")
+    success, public_url = upload_to_spaces(spaces_config, xml_path, spaces_key)
+    return success
+
+
+def cargar_factura_siat(id_factura, base_path, config_file, pedido=None, cuf_override=None, solo_spaces=False):
     """
     Flujo optimizado: dado el idFactura de la tabla 'factura', localiza el XML SIAT
     correspondiente (por monto + NIT + fecha), valida, y previa confirmación del usuario
     inserta en factura_siat y opcionalmente sube el XML a Spaces.
+
+    Si el CUF ya existe en factura_siat no se inserta nada, pero se ofrece subir solo el
+    XML a Spaces. Con solo_spaces=True se omite por completo la inserción y se sube
+    únicamente el XML (útil para recuperar subidas fallidas sin duplicar filas).
 
     Solo realiza operaciones de LECTURA (SELECT) y, tras confirmación explícita, un INSERT.
     Nunca ejecuta DELETE ni UPDATE.
@@ -591,14 +622,20 @@ def cargar_factura_siat(id_factura, base_path, config_file, pedido=None, cuf_ove
     if xml_fecha != fecha_str:
         print(f"ADVERTENCIA: la fecha del XML ({xml_fecha}) no coincide con la factura ({fecha_str}).")
 
-    # 4) Pre-chequeo de duplicado por CUF
-    existe = cuf_existe_en_db(db_config, cuf)
-    if existe is True:
-        print(f"\nEl CUF ya está cargado en factura_siat. No se hará nada (sin duplicados).")
-        return
-    if existe is None:
-        print("\nNo se pudo verificar duplicados; se aborta por precaución.")
-        return
+    # 4) Pre-chequeo de duplicado por CUF (se omite en modo --solo-spaces)
+    if not solo_spaces:
+        existe = cuf_existe_en_db(db_config, cuf)
+        if existe is None:
+            print("\nNo se pudo verificar duplicados; se aborta por precaución.")
+            return
+        if existe is True:
+            print("\nEl CUF ya está cargado en factura_siat. No se insertará (sin duplicados).")
+            resp = input(f"¿Subir solo el XML '{os.path.basename(xml_path)}' a Spaces? (s/n): ").strip().lower()
+            if resp == "s":
+                subir_xml_a_spaces(config_file, xml_path)
+            else:
+                print("Subida a Spaces cancelada por el usuario.")
+            return
 
     # 5) Construir el INSERT parametrizado y mostrar resumen
     sql, params = build_insert_factura_siat(xml_string, id_factura, pedido)
@@ -610,7 +647,13 @@ def cargar_factura_siat(id_factura, base_path, config_file, pedido=None, cuf_ove
     print(f"  Monto     : {xml_total}")
     print(f"  Pedido    : {pedido if pedido else '(sin pedido)'}")
 
-    # 6) Confirmar e insertar
+    # 6) Modo solo Spaces: no se toca la base de datos
+    if solo_spaces:
+        print("\nModo --solo-spaces: se omite la inserción en factura_siat.")
+        subir_xml_a_spaces(config_file, xml_path)
+        return
+
+    # 7) Confirmar e insertar
     resp = input("\n¿Insertar esta factura en factura_siat? (s/n): ").strip().lower()
     if resp != "s":
         print("Inserción cancelada por el usuario.")
@@ -626,17 +669,12 @@ def cargar_factura_siat(id_factura, base_path, config_file, pedido=None, cuf_ove
         return
     print("Factura insertada correctamente en factura_siat.")
 
-    # 7) Subida opcional a Spaces
+    # 8) Subida opcional a Spaces
     resp_sp = input(f"¿Subir el XML '{os.path.basename(xml_path)}' a DigitalOcean Spaces? (s/n): ").strip().lower()
     if resp_sp != "s":
         print("Subida a Spaces cancelada por el usuario.")
         return
-    spaces_config = get_spaces_config(config_file)
-    upload_folder = spaces_config.get("upload_folder", "obs/xmls/")
-    if upload_folder and not upload_folder.endswith("/"):
-        upload_folder += "/"
-    spaces_key = f"{upload_folder}{os.path.basename(xml_path)}"
-    upload_to_spaces(spaces_config, xml_path, spaces_key)
+    subir_xml_a_spaces(config_file, xml_path)
 
 
 def process_factura_by_cuf(cuf, factura_id, base_path=".", pedido=None, numero_factura=None, total_factura=None):
